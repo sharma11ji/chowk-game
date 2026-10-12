@@ -52,7 +52,7 @@ jobs:
           key=pathlib.Path(os.environ['RUNNER_TEMP'])/'chowk.keystore'
           key.write_bytes(base64.b64decode(d['keystore_base64']))
           with open(os.environ['GITHUB_ENV'],'a') as f:
-              for name,value in {'GODOT_ANDROID_KEYSTORE_DEBUG_PATH':str(key),'GODOT_ANDROID_KEYSTORE_DEBUG_USER':d['alias'],'GODOT_ANDROID_KEYSTORE_DEBUG_PASS':d['store_password']}.items():
+              for name,value in {'GODOT_ANDROID_KEYSTORE_DEBUG_PATH':str(key),'GODOT_ANDROID_KEYSTORE_DEBUG_USER':d['alias'],'GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD':d['store_password']}.items():
                   print('::add-mask::'+value)
                   f.write(name+'='+value+'\n')
           PYCODE
