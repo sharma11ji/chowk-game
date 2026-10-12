@@ -1,0 +1,21 @@
+; CHOWK - small-town exploration prototype
+config_version=5
+[application]
+config/name="Chowk - Apna Mohalla"
+run/main_scene="res://town.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+[display]
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/size/window_width_override=540
+window/size/window_height_override=960
+window/stretch/mode="canvas_items"
+window/handheld/orientation=1
+window/stretch/aspect="keep"
+[rendering]
+textures/vram_compression/import_etc2_astc=true
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+[environment]
+defaults/default_clear_color=Color(0.86,0.81,0.68,1)
