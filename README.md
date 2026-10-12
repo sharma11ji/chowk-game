@@ -46,7 +46,7 @@ All town illustrations were drawn for this project using Godot primitives.
 No downloaded art, paid assets or external art dependencies are included.
 
 ## Android build
-Portrait APK: package com.sharma11ji.chowk, version 0.1.0.
+Portrait APK: package com.sharma11ji.chowk, version 0.2.0.
 Includes ARM64 and ARMv7, requires Android 7.0 or newer.
 No Android permissions requested. Offline exploration; no accounts or ads.
 Use the Android export preset with Godot 4.7.2 export templates and your local
