@@ -1,6 +1,7 @@
 ; CHOWK - small-town exploration prototype
 config_version=5
 [application]
+config/version="0.2.0"
 config/name="Chowk - Apna Mohalla"
 run/main_scene="res://town.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
