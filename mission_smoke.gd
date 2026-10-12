@@ -1,0 +1,71 @@
+extends SceneTree
+var town: Node2D
+var failures:=0
+func check(ok: bool,msg: String) -> void:
+ print("PASS: " if ok else "FAIL: ",msg)
+ if not ok: failures+=1
+func ticks(n: int=5) -> void:
+ for i in range(n): await physics_frame
+func visit(p: Vector2) -> void:
+ town.player.position=p
+ await ticks()
+func _initialize() -> void: run.call_deferred()
+func run() -> void:
+ town=load("res://town.tscn").instantiate()
+ root.add_child(town)
+ await ticks()
+ check(town.mission_areas.size()==2,"Real Area2D proximity circles exist")
+ check(not town.talk_button.visible,"Talk hidden far from NPCs")
+ town.talk_to_nearest()
+ check(town.mission_state==0,"Cannot start mission from a distance")
+ await visit(Vector2(445,424))
+ check(town.talk_button.visible and town.nearest_npc()==1,"Gupta Area2D detects player")
+ town.talk_button.pressed.emit()
+ check(not town.has_milk and town.mission_state==0,"Gupta before Raju does not give milk")
+ town.close_button.pressed.emit()
+ await visit(Vector2(257,427))
+ check(town.talk_button.visible and town.nearest_npc()==0,"Raju Area2D shows Talk")
+ town.talk_button.pressed.emit()
+ check(town.dialogue_open and town.dialogue_panel.visible,"Talk opens dialogue panel")
+ check(town.mission_state==1 and town.dialogue_text.text=="Bhai, doodh khatam ho gaya hai. Gupta ji ki dukaan se ek packet la doge?","Exact Raju start dialogue and state")
+ check(not town.talk_button.visible,"Talk hidden while dialogue open")
+ check(not town.request_move(Vector2(360,700)),"Dialogue blocks world tap movement")
+ var pos: Vector2=town.player.position
+ town.pad_dir=Vector2.DOWN
+ await ticks(12)
+ check(town.player.position.distance_to(pos)<1,"Player stays still during dialogue")
+ town.pad_dir=Vector2.ZERO
+ town.close_button.pressed.emit()
+ town.talk_button.pressed.emit()
+ check(town.mission_state==1 and not town.has_milk,"Raju reminder does not finish mission")
+ town.close_dialogue()
+ await visit(Vector2(360,700))
+ check(not town.talk_button.visible and town.nearby_npcs.is_empty(),"Area exit removes Talk prompt")
+ check(town.request_move(Vector2(445,424)),"Pathfinding still works with mission")
+ await ticks(120)
+ check(town.player.position.distance_to(Vector2(445,424))<18,"Walk reaches Gupta during mission")
+ town.talk_button.pressed.emit()
+ check(town.has_milk and town.mission_state==2,"Gupta gives milk")
+ check(town.dialogue_text.text=="Raju ne bheja hai? Ye lo doodh ka packet.","Exact Gupta dialogue")
+ town.talk_button.pressed.emit()
+ check(town.has_milk and town.mission_state==2,"Repeated press during open dialogue has no effect")
+ town.close_dialogue()
+ town.talk_to_nearest()
+ check(town.mission_state==2 and town.has_milk,"Revisiting Gupta keeps one packet")
+ town.close_dialogue()
+ await visit(Vector2(257,427))
+ town.talk_button.pressed.emit()
+ check(town.mission_state==3 and not town.has_milk,"Raju consumes milk and completes mission")
+ check(town.dialogue_text.text=="Shukriya bhai! Ye lo tumhari garma-garam chai.","Exact completion dialogue")
+ check(town.mission_objective().contains("Mission poora"),"HUD announces completion")
+ town.close_button.pressed.emit()
+ town.talk_button.pressed.emit()
+ check(town.mission_state==3 and not town.has_milk,"Completed mission cannot restart or duplicate reward")
+ town.close_dialogue()
+ await visit(Vector2(445,424))
+ town.talk_to_nearest()
+ check(town.mission_state==3 and not town.has_milk,"Gupta after completion cannot issue milk again")
+ town.close_dialogue()
+ check(town.request_move(Vector2(360,790)),"Exploration resumes after completion")
+ print("RESULT: ",failures," failures")
+ quit(failures)
