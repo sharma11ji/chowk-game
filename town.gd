@@ -19,6 +19,18 @@ var step_clock := 0.0
 var moving := false
 var facing := Vector2.DOWN
 var nearby := "Apna mohalla"
+enum MissionState {NOT_STARTED, NEED_MILK, CARRYING_MILK, COMPLETE}
+var mission_state := MissionState.NOT_STARTED
+var has_milk := false
+var nearby_npcs: Array[int] = []
+var talk_button: Button
+var dialogue_panel: Panel
+var dialogue_text: Label
+var dialogue_speaker: Label
+var dialogue_hint: Label
+var close_button: Button
+var dialogue_open := false
+var mission_areas: Array[Area2D] = []
 var buildings: Array[Dictionary] = [
  {"rect":Rect2(48,226,216,144),"name":"CHAI TAPRI","sub":"Raju ki chai","color":Color("be6845"),"kind":"chai"},
  {"rect":Rect2(456,226,216,166),"name":"KIRANA STORE","sub":"Gupta general store","color":Color("568580"),"kind":"store"},
@@ -40,6 +52,7 @@ func _ready() -> void:
  player.add_child(col)
  add_child(player)
  player.position = Vector2(360,790)
+ setup_mission() 
  for b in buildings:
   add_obstacle(b.rect)
  # Solid tree trunks and cart, not just buildings.
@@ -67,6 +80,14 @@ func _ready() -> void:
   if arg == "--pose=chai": player.position = Vector2(257,427)
   if arg == "--pose=kirana": player.position = Vector2(445,424)
  queue_redraw()
+ var preview := ""
+ var capture_file := ""
+ for arg in OS.get_cmdline_user_args():
+  if arg.begins_with("--mission-preview="): preview=arg.substr(18)
+  if arg.begins_with("--capture="): capture_file=arg.substr(10)
+ if not preview.is_empty():
+  mission_preview.call_deferred(preview,capture_file)
+  return
  for arg in OS.get_cmdline_user_args():
   if arg.begins_with("--capture="):
    capture.call_deferred(arg.substr(10))
@@ -91,6 +112,7 @@ func capture(filename: String) -> void:
  get_tree().quit()
 
 func request_move(p: Vector2) -> bool:
+ if dialogue_open: return false
  if not WORLD.grow(-13).has_point(p): return false
  var goal := Vector2i(floor(p.x/CELL),floor(p.y/CELL))
  var start := Vector2i(floor(player.position.x/CELL),floor(player.position.y/CELL))
@@ -102,6 +124,7 @@ func request_move(p: Vector2) -> bool:
  return true
 
 func _unhandled_input(event: InputEvent) -> void:
+ if dialogue_open: return
  if event is InputEventScreenTouch:
   if event.pressed:
    if event.position.y > 1100:
@@ -130,6 +153,12 @@ func update_pad(p: Vector2) -> void:
  has_target = false
 
 func _physics_process(delta: float) -> void:
+ update_talk_button()
+ if dialogue_open:
+  player.velocity=Vector2.ZERO
+  moving=false
+  queue_redraw()
+  return
  var dir := pad_dir
  var keys := Vector2(float(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT))-float(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)),float(Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN))-float(Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)))
  if not keys.is_zero_approx():
@@ -329,8 +358,8 @@ func draw_hud() -> void:
  label("CHOWK",Vector2(30,60),42,CREAM)
  label("APNA MOHALLA",Vector2(32,91),17,Color("a7beb0"))
  box(Rect2(558,31,132,33),Color("45635a"))
- center("EXPLORE / V1",Vector2(624,54),14,CREAM)
- label("Subah  /  Bazaar Road",Vector2(33,122),16,Color("d3d5b8"))
+ center("V2 / 0.2.0",Vector2(624,54),14,CREAM)
+ label(mission_objective(),Vector2(33,122),18,Color("e5c16d"))
  # bottom controls stay outside the playable area
  box(Rect2(0,1096,720,184),INK)
  line(Vector2(0,1096),Vector2(720,1096),Color("f1dba5"),3)
@@ -344,4 +373,181 @@ func draw_hud() -> void:
  label("Yahan tap karo, wahan chalo",Vector2(233,1154),23,CREAM)
  label("Ya left wala pad dabao",Vector2(234,1188),18,Color("afc6b7"))
  label(nearby,Vector2(234,1227),18,Color("e5c16d"))
- label("Abhi sirf ghoomo. Baat-cheet agle step mein.",Vector2(233,1256),14,Color("93aa9e"))
+ label("NPC ke paas jao, phir Baat karo dabao.",Vector2(233,1256),14,Color("93aa9e"))
+
+
+func mission_objective() -> String:
+ match mission_state:
+  MissionState.NOT_STARTED: return "Raju ki Chai  /  Raju se baat karo"
+  MissionState.NEED_MILK: return "Raju ki Chai  /  Gupta ji se doodh lao"
+  MissionState.CARRYING_MILK: return "Raju ki Chai  /  Doodh Raju ko do"
+  _: return "Raju ki Chai  /  Mission poora! Chai mil gayi."
+
+func ui_style(bg: Color,border: Color=Color.TRANSPARENT) -> StyleBoxFlat:
+ var style := StyleBoxFlat.new()
+ style.bg_color=bg
+ style.border_color=border
+ style.set_border_width_all(2 if border.a > 0 else 0)
+ style.set_corner_radius_all(16)
+ return style
+
+func styled_button(text: String,pos: Vector2,size: Vector2) -> Button:
+ var button := Button.new()
+ button.text=text
+ button.position=pos
+ button.size=size
+ button.add_theme_font_size_override("font_size",26)
+ button.add_theme_color_override("font_color",CREAM)
+ button.add_theme_color_override("font_pressed_color",CREAM)
+ button.add_theme_color_override("font_hover_color",CREAM)
+ button.add_theme_stylebox_override("normal",ui_style(Color("496f60"),Color("aac3a3")))
+ button.add_theme_stylebox_override("pressed",ui_style(Color("304c42"),CREAM))
+ button.add_theme_stylebox_override("hover",ui_style(Color("597d69"),CREAM))
+ button.focus_mode=Control.FOCUS_NONE
+ return button
+
+func setup_mission() -> void:
+ for i in range(npcs.size()):
+  var area := Area2D.new()
+  area.name="RajuProximity" if i==0 else "GuptaProximity"
+  area.position=npcs[i].pos
+  area.collision_layer=0
+  area.collision_mask=1
+  var collision := CollisionShape2D.new()
+  var circle := CircleShape2D.new()
+  circle.radius=65
+  collision.shape=circle
+  area.add_child(collision)
+  area.body_entered.connect(on_npc_enter.bind(i))
+  area.body_exited.connect(on_npc_exit.bind(i))
+  add_child(area)
+  mission_areas.append(area)
+ var layer := CanvasLayer.new()
+ layer.name="MissionUI"
+ add_child(layer)
+ talk_button=styled_button("Baat karo",Vector2(384,987),Vector2(300,78))
+ layer.add_child(talk_button)
+ talk_button.pressed.connect(talk_to_nearest)
+ talk_button.hide()
+ dialogue_panel=Panel.new()
+ dialogue_panel.name="DialoguePanel"
+ dialogue_panel.position=Vector2(24,857)
+ dialogue_panel.size=Vector2(672,409)
+ dialogue_panel.add_theme_stylebox_override("panel",ui_style(INK,Color("e5c16d")))
+ layer.add_child(dialogue_panel)
+ dialogue_speaker=Label.new()
+ dialogue_speaker.position=Vector2(26,20)
+ dialogue_speaker.size=Vector2(610,42)
+ dialogue_speaker.add_theme_font_size_override("font_size",29)
+ dialogue_speaker.add_theme_color_override("font_color",Color("e5c16d"))
+ dialogue_panel.add_child(dialogue_speaker)
+ dialogue_text=Label.new()
+ dialogue_text.position=Vector2(26,79)
+ dialogue_text.size=Vector2(614,137)
+ dialogue_text.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+ dialogue_text.add_theme_font_size_override("font_size",29)
+ dialogue_text.add_theme_color_override("font_color",CREAM)
+ dialogue_panel.add_child(dialogue_text)
+ dialogue_hint=Label.new()
+ dialogue_hint.position=Vector2(26,233)
+ dialogue_hint.size=Vector2(614,48)
+ dialogue_hint.add_theme_font_size_override("font_size",21)
+ dialogue_hint.add_theme_color_override("font_color",Color("afc6b7"))
+ dialogue_panel.add_child(dialogue_hint)
+ close_button=styled_button("Theek hai",Vector2(26,303),Vector2(620,78))
+ dialogue_panel.add_child(close_button)
+ close_button.pressed.connect(close_dialogue)
+ dialogue_panel.hide()
+
+func on_npc_enter(body: Node2D,index: int) -> void:
+ if body==player and not nearby_npcs.has(index): nearby_npcs.append(index)
+ update_talk_button()
+func on_npc_exit(body: Node2D,index: int) -> void:
+ if body==player: nearby_npcs.erase(index)
+ update_talk_button()
+func nearest_npc() -> int:
+ var found := -1
+ var best := INF
+ for i in nearby_npcs:
+  var distance: float=player.position.distance_squared_to(npcs[i].pos)
+  if distance<best:
+   best=distance
+   found=i
+ return found
+func update_talk_button() -> void:
+ if not is_instance_valid(talk_button): return
+ var index := nearest_npc()
+ talk_button.visible=index>=0 and not dialogue_open
+ if index>=0: talk_button.text="Baat karo: "+str(npcs[index].name)
+func talk_to_nearest() -> void:
+ if dialogue_open: return
+ var index := nearest_npc()
+ if index<0: return
+ var text := ""
+ var hint := ""
+ if index==0:
+  match mission_state:
+   MissionState.NOT_STARTED:
+    mission_state=MissionState.NEED_MILK
+    text="Bhai, doodh khatam ho gaya hai. Gupta ji ki dukaan se ek packet la doge?"
+    hint="Mission shuru: Gupta ji se doodh lao."
+   MissionState.NEED_MILK:
+    text="Bhai, Gupta ji ki dukaan se ek packet doodh le aao. Main yahin hoon."
+    hint="Abhi doodh nahi mila. Gupta ji se baat karo."
+   MissionState.CARRYING_MILK:
+    if not has_milk: return
+    has_milk=false
+    mission_state=MissionState.COMPLETE
+    text="Shukriya bhai! Ye lo tumhari garma-garam chai."
+    hint="Mission poora! Inaam: garma-garam chai."
+   MissionState.COMPLETE:
+    text="Chai kaisi lagi, bhai? Aaram se mohalla ghoomo!"
+    hint="Raju ki Chai: poora ho chuka hai."
+ else:
+  match mission_state:
+   MissionState.NOT_STARTED:
+    text="Namaste bhai! Raju ki tapri par jao, shayad unhe tumhari madad chahiye."
+    hint="Pehle Raju se baat karo."
+   MissionState.NEED_MILK:
+    has_milk=true
+    mission_state=MissionState.CARRYING_MILK
+    text="Raju ne bheja hai? Ye lo doodh ka packet."
+    hint="Doodh ka packet mila. Ab Raju ke paas jao."
+   MissionState.CARRYING_MILK:
+    text="Doodh ka packet tumhare paas hai. Raju ko de aao."
+    hint="Bag mein: doodh ka 1 packet."
+   MissionState.COMPLETE:
+    text="Raju ko doodh mil gaya? Badhiya! Phir aana, bhai."
+    hint="Raju ki Chai: poora ho chuka hai."
+ path.clear()
+ has_target=false
+ pad_dir=Vector2.ZERO
+ pad_touch=-1
+ player.velocity=Vector2.ZERO
+ dialogue_open=true
+ dialogue_speaker.text=str(npcs[index].name)+"  /  Raju ki Chai"
+ dialogue_text.text=text
+ dialogue_hint.text=hint
+ close_button.text="Chai mil gayi!" if mission_state==MissionState.COMPLETE and index==0 else "Theek hai"
+ dialogue_panel.show()
+ update_talk_button()
+func close_dialogue() -> void:
+ dialogue_open=false
+ dialogue_panel.hide()
+ update_talk_button()
+
+func mission_preview(stage: String,filename: String) -> void:
+ player.position=Vector2(257,427)
+ for i in range(4): await get_tree().physics_frame
+ if stage!="talk": talk_to_nearest()
+ if stage in ["gupta","complete"]:
+  close_dialogue()
+  player.position=Vector2(445,424)
+  for i in range(4): await get_tree().physics_frame
+  talk_to_nearest()
+ if stage=="complete":
+  close_dialogue()
+  player.position=Vector2(257,427)
+  for i in range(4): await get_tree().physics_frame
+  talk_to_nearest()
+ if not filename.is_empty(): await capture(filename)
