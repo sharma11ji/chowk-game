@@ -1,4 +1,4 @@
-# CHOWK - Apna Mohalla (v1)
+# CHOWK - Apna Mohalla (v2 / 0.2.0)
 
 A small top-down Indian town exploration game for a portrait phone screen.
 
@@ -14,7 +14,7 @@ Open project.godot in Godot 4.7.2 stable and run the project.
 - Main road and a small crossing, chai tapri, kirana store, four houses.
 - Original primitive art: striped shop awnings, chai tables and cups, sabzi cart,
   trees, parked scooters, water pump and utility poles.
-- Two stationary NPCs: Raju and Gupta ji. No dialogue, missions or interiors yet.
+- Two stationary NPCs: Raju and Gupta ji, with dialogue and the Raju ki Chai mission. No interiors.
 - CharacterBody2D player, solid building/tree/cart/map-boundary collision.
 - AStarGrid2D tap navigation. Touch controls and fixed 720 x 1280 composition.
 
@@ -51,3 +51,20 @@ Includes ARM64 and ARMv7, requires Android 7.0 or newer.
 No Android permissions requested. Offline exploration; no accounts or ads.
 Use the Android export preset with Godot 4.7.2 export templates and your local
 Android SDK configured in Godot editor settings. Debug signing is local only.
+
+
+## Raju ki Chai mission
+Raju ki Chai is implemented. Approach either NPC to show Baat karo.
+Talk to Raju, collect milk from Gupta ji, and return to Raju to receive chai.
+Dialogue changes before the mission, while fetching or carrying milk, and after
+completion. Real Area2D circles detect the player. The dialogue pauses movement
+and the bottom panel has a large close button. Progress lasts for the current
+session only; restarting the game resets the mission. There is no save system.
+Run mission_smoke.gd for mission tests, in addition to smoke.gd for v1 regression.
+
+## v2 installation
+Download CHOWK-v2-debug.apk from the v0.2.0 release. Uninstall v1 first.
+The v1 build used a temporary CI signing key which was not preserved; v2 cannot
+update that installation in place. No v1 saves exist. v2 is session-only too.
+Debug-signed test build, not a Play Store release. If a security scan warns, stop
+and share a screenshot rather than disabling protections.
